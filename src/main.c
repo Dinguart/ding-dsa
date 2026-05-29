@@ -30,13 +30,40 @@ void test_find() {
     printf("%d\n", vec_idx_of_first(&v, &c));
     printf("%d\n", vec_idx_of_last(&v, &c));
 
-    array ar = all_occurrences_of(&v, &c);
+    array ar = vec_all_occurrences_of(&v, &c);
     for (size_t i=0; i<ar.size; ++i) {
         printf("%d\n", ((int*)ar.data)[i]);
     }
+    puts("");
+
+    printf("%d\n", *(int*)vec_item_at(&v, 2));
+}
+
+void test_concat() {
+    vector v1 = init_vector_ret(sizeof(int));
+
+    int a=1, b=2, c=3, d=4;
+    vec_push_back(&v1, &a);
+    vec_push_back(&v1, &b);
+    vec_push_back(&v1, &c);
+    vec_push_back(&v1, &d);
+    vec_push_back(&v1, &c);
+
+    vector v2 = init_vector_ret(sizeof(int));
+
+    vec_push_back(&v2, &a);
+    vec_push_back(&v2, &b);
+    vec_push_back(&v2, &c);
+    vec_push_back(&v2, &d);
+    vec_push_back(&v2, &c);
+
+    vec_concat(&v1, &v2);
+    info_log(&v1);
+    info_log(&v2);
 }
 
 int main(void) {
     //    test_front_back();
-    test_find();
+    //test_find();
+    test_concat();
 }

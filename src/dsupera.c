@@ -18,7 +18,7 @@ vector init_vector_ret(const size_t element_size) {
 }
 
 void vec_push_back(vector *vec, const void *item) {
-  if (vec->size > vec->max_limit) {
+  if (vec->size >= vec->max_limit) {
     vec->max_limit *= 2;
     vec->data = realloc(vec->data, vec->max_limit * vec->element_size);
   }
@@ -43,6 +43,11 @@ void *vec_back(const vector *vec) {
   }
   return (char*)vec->data + (vec->size-1)*vec->element_size;
 }
+
+void *vec_item_at(const vector *vec, const size_t index) {
+    return (char*)vec->data + index*vec->element_size;
+}
+
 void vec_reserve(vector *vec, const size_t new_max) {
     vec->data = realloc(vec->data, new_max);
 }
@@ -61,7 +66,7 @@ int vec_idx_of_last(vector *vec, const void *item) {
     return -1;
 }
 
-array all_occurrences_of(vector *vec, const void *item) {
+array vec_all_occurrences_of(vector *vec, const void *item) {
     array occurrence_arr = {
         .data = (int*)malloc(sizeof(int)*vec->size),
         .size = vec->size
@@ -78,6 +83,26 @@ array all_occurrences_of(vector *vec, const void *item) {
         occurrence_arr.size = idx;
     }
     return occurrence_arr;
+}
+
+void vec_concat(vector *dest, const vector *src) {
+    if (dest->element_size != src->element_size) {
+        fprintf(stderr, "Vectors contain different types.\n");
+        return;
+    }
+
+    if (dest->size+src->size > dest->max_limit) {
+        dest->max_limit = dest->max_limit + src->max_limit;
+        dest->data = realloc(dest->data, dest->max_limit * dest->element_size);
+    }
+
+    size_t src_idx=0;
+    for (size_t i = dest->size; i<dest->size+src->size; ++i) {
+        void *item = (char *)src->data + (src_idx++ * src->element_size);
+        void *dest_tmp = (char *)dest->data + (i * dest->element_size);
+        memcpy(dest_tmp, item, dest->element_size);
+    }
+    dest->size += src->size;
 }
 
 void vec_free(vector *vec) {
