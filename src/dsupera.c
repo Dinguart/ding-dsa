@@ -1,5 +1,12 @@
 #include "dsupera.h"
 
+typedef struct vector {
+  void *data;
+  size_t size;         // stores the num of elements
+  size_t max_limit;    // stores max capacity of vec
+  size_t element_size; // size of element in bytes
+} vector;
+
 void init_vector(vector *vec, const size_t element_size) {
   vec->size = 0;
   vec->max_limit = 4;
@@ -7,18 +14,18 @@ void init_vector(vector *vec, const size_t element_size) {
   vec->data = malloc(element_size * vec->max_limit);
 }
 
-vector init_vector_ret(const size_t element_size) {
+vector *init_vector_ret(const size_t element_size) {
     size_t max_limit = 4;
-    return (vector) {
-        malloc(element_size*max_limit),
-        0,
-        max_limit,
-        element_size,
-    };
+    vector *v = malloc(sizeof(vector));
+    v->data = malloc(element_size*max_limit);
+    v->size = 0;
+    v->max_limit = max_limit;
+    v->element_size = element_size;
+    return v;
 }
 
 void vec_push_back(vector *vec, const void *item) {
-  if (vec->size >= vec->max_limit) {
+  if (vec->size+1 > vec->max_limit) {
     vec->max_limit *= 2;
     vec->data = realloc(vec->data, vec->max_limit * vec->element_size);
   }
@@ -26,6 +33,14 @@ void vec_push_back(vector *vec, const void *item) {
   void *dest = (char *)vec->data + (vec->size * vec->element_size);
   memcpy(dest, item, vec->element_size);
   vec->size++;
+}
+
+void vec_pop_back(vector *vec) {
+    if (vec->size == 0) {
+        fprintf(stderr, "Cannot pop back, vector is empty.\n");
+        return;
+    }
+    vec->size--;
 }
 
 void *vec_front(const vector *vec) {
@@ -49,7 +64,12 @@ void *vec_item_at(const vector *vec, const size_t index) {
 }
 
 void vec_reserve(vector *vec, const size_t new_max) {
-    vec->data = realloc(vec->data, new_max);
+    if (new_max < vec->size) {
+        fprintf(stderr, "Cannot reserve smaller than vector's size\n");
+        return;
+    }
+    vec->max_limit = new_max;
+    vec->data = realloc(vec->data, vec->max_limit * vec->element_size);
 }
 
 int vec_idx_of_first(vector *vec, const void *item) {
@@ -105,11 +125,31 @@ void vec_concat(vector *dest, const vector *src) {
     dest->size += src->size;
 }
 
+void vec_clear(vector *vec) {
+    memset(vec->data, 0, vec->size * vec->element_size);
+    vec->size = 0;
+}
+
+int vec_is_empty(const vector *vec) {
+    return vec->size == 0;
+}
+size_t vec_size(const vector *vec) {
+    return vec->size;
+}
+size_t vec_capacity(const vector *vec) {
+    return vec->max_limit;
+}
+
 void vec_free(vector *vec) {
     free(vec->data);
     vec->size=0;
     vec->max_limit=0;
     vec->element_size=0;
+}
+
+void vec_shrink_to_fit(vector *vec) {
+    vec->max_limit = vec->size;
+    vec->data = realloc(vec->data, vec->max_limit * vec->element_size);
 }
 
 void info_log(const vector *v) {
