@@ -18,7 +18,7 @@ typedef struct array {
 // vector impl
 
 typedef struct vector vector;
-void init_vector(vector *vec, const size_t element_size);
+void init_vector(vector **vec, const size_t element_size);
 vector *init_vector_ret(const size_t element_size);
 
 void vec_push_back(vector *vec, const void *item, const size_t item_size);
@@ -47,14 +47,20 @@ void vec_info_log(const vector *v);
 typedef struct node node;
 typedef struct linked_list linked_list;
 
-node *init_node_ret(const size_t element_size);
-void init_node(node *n, const size_t element_size);
+node *init_node_ret(const void *data, const size_t element_size);
+void init_node(node **n, const void *data, const size_t element_size);
 void add_node(linked_list *ll, node *n);
+void delete_node(node *n);
 
 linked_list *init_linked_list_ret(const size_t element_size);
 void init_linked_list(linked_list *ll, const size_t element_size);
 
 void set_linked_list_head(linked_list *ll, const void *item, const size_t item_size);
 void set_linked_list_tail(linked_list *ll, const void *item, const size_t item_size);
+
+void free_node(node *n);
+void free_linked_list(linked_list *ll);
+
+void linked_list_info_log(linked_list *ll);
 
 #endif

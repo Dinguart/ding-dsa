@@ -89,13 +89,34 @@ void test_mem_funcs() {
 
 void test_linked_list_init() {
     linked_list *l = init_linked_list_ret(sizeof(int));
+    int a=1;
+    int b=2;
+    int c=3;
+    int d=4;
+
+    set_linked_list_head(l, &a, sizeof(int));
+    set_linked_list_tail(l, &b, sizeof(int));
+
+    node *n1 = init_node_ret(&c, sizeof(int));
+    add_node(l, n1);
+
+    node *n2 = NULL;
+    init_node(&n2, &d, sizeof(int));
+    add_node(l, n2);
+
+    linked_list_info_log(l);
+
+    delete_node(n1);
+    linked_list_info_log(l);
 
 
+    free(l);
 }
 
 int main(void) {
     //    test_front_back();
-    test_find();
+    //test_find();
     //test_concat();
     //test_mem_funcs();
+    test_linked_list_init();
 }

@@ -9,11 +9,15 @@ typedef struct vector {
     size_t element_size; // size of element in bytes
 } vector;
 
-void init_vector(vector *vec, const size_t element_size) {
-    vec->size = 0;
-    vec->max_limit = 4;
-    vec->element_size = element_size;
-    vec->data = malloc(element_size * vec->max_limit);
+void init_vector(vector **vec, const size_t element_size) {
+    if (!*vec) {
+        *vec = malloc(sizeof(vector));
+    }
+
+    (*vec)->size = 0;
+    (*vec)->max_limit = 4;
+    (*vec)->element_size = element_size;
+    (*vec)->data = malloc(element_size * (*vec)->max_limit);
 }
 
 vector *init_vector_ret(const size_t element_size) {
@@ -195,19 +199,25 @@ typedef struct linked_list {
     size_t element_size;
 } linked_list;
 
-node *init_node_ret(const size_t element_size) {
+node *init_node_ret(const void *data, const size_t element_size) {
     node *n = malloc(sizeof(node));
     n->data = malloc(element_size);
     n->element_size = element_size;
     n->next = NULL;
     n->prev = NULL;
+    memcpy(n->data, data, element_size);
     return n;
 }
-void init_node(node *n, const size_t element_size) {
-    n->data = malloc(element_size);
-    n->element_size = element_size;
-    n->next = NULL;
-    n->prev = NULL;
+void init_node(node **n, const void *data, const size_t element_size) {
+    if (!*n) {
+        *n = malloc(sizeof(node));
+    }
+
+    (*n)->data = malloc(element_size);
+    (*n)->element_size = element_size;
+    (*n)->next = NULL;
+    (*n)->prev = NULL;
+    memcpy((*n)->data, data, element_size);
 }
 
 void add_node(linked_list *ll, node *n) {
@@ -223,9 +233,20 @@ void add_node(linked_list *ll, node *n) {
     tmp->prev = n;
 }
 
+void delete_node(node *n) {
+    node *prev_n = n->prev;
+    node *next_n = n->next;
+    prev_n->next = next_n;
+    next_n->prev = prev_n;
+    free_node(n);
+}
+
 linked_list *init_linked_list_ret(const size_t element_size) {
     linked_list *ll = malloc(sizeof(linked_list));
     ll->element_size = element_size;
+
+    ll->head = malloc(sizeof(node));
+    ll->tail = malloc(sizeof(node));
 
     ll->head->data = malloc(element_size);
     ll->head->element_size = element_size;
@@ -244,11 +265,13 @@ linked_list *init_linked_list_ret(const size_t element_size) {
 void init_linked_list(linked_list *ll, const size_t element_size) {
     ll->element_size = element_size;
 
+    ll->head = malloc(sizeof(node));
     ll->head->data = malloc(element_size);
     ll->head->element_size = element_size;
     ll->head->next = ll->tail;
     ll->head->prev = NULL;
 
+    ll->tail = malloc(sizeof(node));
     ll->tail->data = malloc(element_size);
     ll->tail->element_size = element_size;
     ll->tail->next = NULL;
@@ -280,4 +303,26 @@ void set_linked_list_tail(linked_list *ll, const void *item, const size_t item_s
         return;
     }
     memcpy(ll->tail->data, item, ll->element_size);
+}
+
+void free_node(node *n) {
+    free(n->data);
+    free(n);
+}
+
+void free_linked_list(linked_list *ll) {
+    while (ll->head != NULL) {
+        free(ll->head->data);
+        free(ll->head);
+        ll->head = ll->head->next;
+    }
+    free(ll);
+}
+
+void linked_list_info_log(linked_list *ll) {
+    node *tmp = ll->head;
+    while (tmp != NULL) {
+        printf("%d\n", *(int*)(tmp->data));
+        tmp = tmp->next;
+    }
 }
