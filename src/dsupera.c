@@ -1,17 +1,19 @@
 #include "dsupera.h"
 
+// vector implementation
+
 typedef struct vector {
-  void *data;
-  size_t size;         // stores the num of elements
-  size_t max_limit;    // stores max capacity of vec
-  size_t element_size; // size of element in bytes
+    void *data;
+    size_t size;         // stores the num of elements
+    size_t max_limit;    // stores max capacity of vec
+    size_t element_size; // size of element in bytes
 } vector;
 
 void init_vector(vector *vec, const size_t element_size) {
-  vec->size = 0;
-  vec->max_limit = 4;
-  vec->element_size = element_size;
-  vec->data = malloc(element_size * vec->max_limit);
+    vec->size = 0;
+    vec->max_limit = 4;
+    vec->element_size = element_size;
+    vec->data = malloc(element_size * vec->max_limit);
 }
 
 vector *init_vector_ret(const size_t element_size) {
@@ -24,15 +26,19 @@ vector *init_vector_ret(const size_t element_size) {
     return v;
 }
 
-void vec_push_back(vector *vec, const void *item) {
-  if (vec->size+1 > vec->max_limit) {
-    vec->max_limit *= 2;
-    vec->data = realloc(vec->data, vec->max_limit * vec->element_size);
-  }
+void vec_push_back(vector *vec, const void *item, const size_t item_size) {
+    if (item_size != vec->element_size) {
+        fprintf(stderr, "Type mismatch between the item and the vector.\n");
+        return;
+    }
+    if (vec->size+1 > vec->max_limit) {
+        vec->max_limit *= 2;
+        vec->data = realloc(vec->data, vec->max_limit * vec->element_size);
+    }
 
-  void *dest = (char *)vec->data + (vec->size * vec->element_size);
-  memcpy(dest, item, vec->element_size);
-  vec->size++;
+    void *dest = (char *)vec->data + (vec->size * vec->element_size);
+    memcpy(dest, item, vec->element_size);
+    vec->size++;
 }
 
 void vec_pop_back(vector *vec) {
@@ -44,19 +50,19 @@ void vec_pop_back(vector *vec) {
 }
 
 void *vec_front(const vector *vec) {
-  if (vec->size == 0) {
-      fprintf(stderr, "Vector has no elements.\n");
-      return NULL;
-  }
-  return vec->data;
+    if (vec->size == 0) {
+        fprintf(stderr, "Vector has no elements.\n");
+        return NULL;
+    }
+    return vec->data;
 }
 
 void *vec_back(const vector *vec) {
-  if (vec->size == 0) {
-      fprintf(stderr, "Vector has no elements.\n");
-      return NULL;
-  }
-  return (char*)vec->data + (vec->size-1)*vec->element_size;
+    if (vec->size == 0) {
+        fprintf(stderr, "Vector has no elements.\n");
+        return NULL;
+    }
+    return (char*)vec->data + (vec->size-1)*vec->element_size;
 }
 
 void *vec_item_at(const vector *vec, const size_t index) {
@@ -72,37 +78,49 @@ void vec_reserve(vector *vec, const size_t new_max) {
     vec->data = realloc(vec->data, vec->max_limit * vec->element_size);
 }
 
-int vec_idx_of_first(vector *vec, const void *item) {
+int vec_idx_of_first(vector *vec, const void *item, const size_t item_size) {
+    if (item_size != vec->element_size) {
+        fprintf(stderr, "Type mismatch between the item and the vector.\n");
+        return -1;
+    }
+
     for (size_t i=0; i<vec->size; ++i) {
         if (memcmp((char*)vec->data+i*vec->element_size, item, vec->element_size)==0) return i;
     }
     return -1;
 }
 
-int vec_idx_of_last(vector *vec, const void *item) {
+int vec_idx_of_last(vector *vec, const void *item, const size_t item_size) {
+    if (item_size != vec->element_size) {
+        fprintf(stderr, "Type mismatch between the item and the vector.\n");
+        return -1;
+    }
+
     for (int i=(int)vec->size; i>=0; --i) {
         if (memcmp((char*)vec->data+i*vec->element_size, item, vec->element_size)==0) return i;
     }
     return -1;
 }
 
-array vec_all_occurrences_of(vector *vec, const void *item) {
-    array occurrence_arr = {
-        .data = (int*)malloc(sizeof(int)*vec->size),
-        .size = vec->size
-    };
+void vec_all_occurrences_of(array *output, vector *vec, const void *item, const size_t item_size) {
+    if (item_size != vec->element_size) {
+        fprintf(stderr, "Type mismatch between the item and the vector.\n");
+        return;
+    }
+
+    output->data = (int*)malloc(sizeof(int) * vec->size);
+    output->size = vec->size;
 
     size_t idx=0;
     for (size_t i=0; i<vec->size; ++i) {
         if (memcmp((char*)vec->data+i*vec->element_size, item, vec->element_size)==0) {
-            ((int*)occurrence_arr.data)[idx++] = i;
+            ((int*)output->data)[idx++] = i;
         }
     }
     if (idx < vec->size) {
-        occurrence_arr.data = realloc(occurrence_arr.data, sizeof(int)*idx);
-        occurrence_arr.size = idx;
+        output->data = realloc(output->data, sizeof(int)*idx);
+        output->size = idx;
     }
-    return occurrence_arr;
 }
 
 void vec_concat(vector *dest, const vector *src) {
@@ -152,10 +170,114 @@ void vec_shrink_to_fit(vector *vec) {
     vec->data = realloc(vec->data, vec->max_limit * vec->element_size);
 }
 
-void info_log(const vector *v) {
+void vec_info_log(const vector *v) {
     printf("vector size -> %zu,\nvector max limit -> %zu,\nvector element size -> %lu,\n", v->size, v->max_limit, v->element_size);
     if (v->size == 0) return;
     for (size_t i = 0; i < v->size; ++i) {
         printf("%zu -> %d\n", i, ((int*)v->data)[i]);
     }
+}
+
+
+// linked list implementation
+
+typedef struct node {
+    void *data;
+    size_t element_size;
+    node *next;
+    node *prev;
+} node;
+
+typedef struct linked_list {
+    node *head;
+    node *tail;
+    size_t size;
+    size_t element_size;
+} linked_list;
+
+node *init_node_ret(const size_t element_size) {
+    node *n = malloc(sizeof(node));
+    n->data = malloc(element_size);
+    n->element_size = element_size;
+    n->next = NULL;
+    n->prev = NULL;
+    return n;
+}
+void init_node(node *n, const size_t element_size) {
+    n->data = malloc(element_size);
+    n->element_size = element_size;
+    n->next = NULL;
+    n->prev = NULL;
+}
+
+void add_node(linked_list *ll, node *n) {
+    if (ll->element_size != n->element_size) {
+        fprintf(stderr, "Node is of different type.\n");
+        return;
+    }
+
+    node *tmp = ll->head->next;
+    n->next = tmp;
+    n->prev = ll->head;
+    ll->head->next = n;
+    tmp->prev = n;
+}
+
+linked_list *init_linked_list_ret(const size_t element_size) {
+    linked_list *ll = malloc(sizeof(linked_list));
+    ll->element_size = element_size;
+
+    ll->head->data = malloc(element_size);
+    ll->head->element_size = element_size;
+    ll->head->next = ll->tail;
+    ll->head->prev = NULL;
+
+    ll->tail->data = malloc(element_size);
+    ll->tail->element_size = element_size;
+    ll->tail->next = NULL;
+    ll->tail->prev = ll->head;
+
+    ll->size = 2;
+    return ll;
+}
+
+void init_linked_list(linked_list *ll, const size_t element_size) {
+    ll->element_size = element_size;
+
+    ll->head->data = malloc(element_size);
+    ll->head->element_size = element_size;
+    ll->head->next = ll->tail;
+    ll->head->prev = NULL;
+
+    ll->tail->data = malloc(element_size);
+    ll->tail->element_size = element_size;
+    ll->tail->next = NULL;
+    ll->tail->prev = ll->head;
+
+    ll->size = 2;
+}
+
+void set_linked_list_head(linked_list *ll, const void *item, const size_t item_size) {
+    if (item_size != ll->element_size) {
+        fprintf(stderr, "Type mismatch between the item and the vector.\n");
+        return;
+    }
+
+    if (!ll->head) {
+        fprintf(stderr, "Head is not allocated, please initialize the linked list.\n");
+        return;
+    }
+    memcpy(ll->head->data, item, ll->element_size);
+}
+void set_linked_list_tail(linked_list *ll, const void *item, const size_t item_size) {
+    if (item_size != ll->element_size) {
+        fprintf(stderr, "Type mismatch between the item and the vector.\n");
+        return;
+    }
+
+    if (!ll->tail) {
+        fprintf(stderr, "Tail is not allocated, please initialize the linked list.\n");
+        return;
+    }
+    memcpy(ll->tail->data, item, ll->element_size);
 }
