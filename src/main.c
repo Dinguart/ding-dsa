@@ -94,23 +94,55 @@ void test_linked_list_init() {
     int c=3;
     int d=4;
 
-    set_linked_list_head(l, &a, sizeof(int));
-    set_linked_list_tail(l, &b, sizeof(int));
+    node *a_node = init_node_ret(&a, sizeof(int));
+    node *b_node = init_node_ret(&b, sizeof(int));
+    node *c_node = init_node_ret(&c, sizeof(int));
+    node_push_front(l, a_node);
+    node_push_front(l, b_node);
+    node_push_front(l, c_node);
 
-    node *n1 = init_node_ret(&c, sizeof(int));
-    add_node(l, n1);
-
-    node *n2 = NULL;
-    init_node(&n2, &d, sizeof(int));
-    add_node(l, n2);
+    node *d_node = NULL;
+    init_node(&d_node, &d, sizeof(int));
+    node_push_back(l, d_node);
 
     linked_list_info_log(l);
 
-    delete_node(n1);
+    delete_node(l, a_node);
     linked_list_info_log(l);
 
+    free_linked_list(l);
+}
 
-    free(l);
+void test_linked_list_free() {
+    linked_list *l = init_linked_list_ret(sizeof(int));
+    int a=1;
+    int b=2;
+    int c=3;
+    node *a_node = init_node_ret(&a, sizeof(int));
+    node *b_node = init_node_ret(&b, sizeof(int));
+    node *c_node = init_node_ret(&c, sizeof(int));
+    node_push_front(l, a_node);
+    node_push_front(l, b_node);
+    node_push_front(l, c_node);
+
+    linked_list_info_log(l);
+    free_linked_list(l);
+}
+
+void test_queue_init() {
+    queue *q = init_queue_ret(sizeof(int));
+    int a=1;
+    int b=2;
+    int c=3;
+    queue_push(q, &a, sizeof(int));
+    queue_push(q, &b, sizeof(int));
+    queue_push(q, &c, sizeof(int));
+
+    queue_pop(q);
+
+
+    queue_info_log(q);
+    queue_free(q);
 }
 
 int main(void) {
@@ -118,5 +150,7 @@ int main(void) {
     //test_find();
     //test_concat();
     //test_mem_funcs();
-    test_linked_list_init();
+    //test_linked_list_init(); // fix ordering of ll add node.
+    //test_linked_list_free();
+    test_queue_init();
 }

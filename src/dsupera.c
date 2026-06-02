@@ -152,7 +152,7 @@ void vec_clear(vector *vec) {
     vec->size = 0;
 }
 
-int vec_is_empty(const vector *vec) {
+boolean vec_is_empty(const vector *vec) {
     return vec->size == 0;
 }
 size_t vec_size(const vector *vec) {
@@ -220,9 +220,13 @@ void init_node(node **n, const void *data, const size_t element_size) {
     memcpy((*n)->data, data, element_size);
 }
 
-void add_node(linked_list *ll, node *n) {
+void node_push_front(linked_list *ll, node *n) {
     if (ll->element_size != n->element_size) {
         fprintf(stderr, "Node is of different type.\n");
+        return;
+    }
+    if (!n) {
+        fprintf(stderr, "Node must be initialized.\n");
         return;
     }
 
@@ -231,14 +235,42 @@ void add_node(linked_list *ll, node *n) {
     n->prev = ll->head;
     ll->head->next = n;
     tmp->prev = n;
+
+    ll->size++;
 }
 
-void delete_node(node *n) {
+void node_push_back(linked_list *ll, node *n) {
+    if (ll->element_size != n->element_size) {
+        fprintf(stderr, "Node is of different type.\n");
+        return;
+    }
+    if (!n) {
+        fprintf(stderr, "Node must be initialized.\n");
+        return;
+    }
+
+    node *tmp = ll->tail->prev;
+    n->next = ll->tail;
+    n->prev = tmp;
+    ll->tail->prev = n;
+    tmp->next = n;
+
+    ll->size++;
+}
+
+void delete_node(linked_list *ll, node *n) {
+    if (ll->size == 0) {
+        fprintf(stderr, "Linked list is empty, cannot pop.\n");
+        return;
+    }
+
     node *prev_n = n->prev;
     node *next_n = n->next;
     prev_n->next = next_n;
     next_n->prev = prev_n;
     free_node(n);
+
+    ll->size--;
 }
 
 linked_list *init_linked_list_ret(const size_t element_size) {
@@ -249,16 +281,12 @@ linked_list *init_linked_list_ret(const size_t element_size) {
     ll->tail = malloc(sizeof(node));
 
     ll->head->data = malloc(element_size);
-    ll->head->element_size = element_size;
-    ll->head->next = ll->tail;
-    ll->head->prev = NULL;
-
     ll->tail->data = malloc(element_size);
-    ll->tail->element_size = element_size;
-    ll->tail->next = NULL;
+
+    ll->head->next = ll->tail;
     ll->tail->prev = ll->head;
 
-    ll->size = 2;
+    ll->size = 0;
     return ll;
 }
 
@@ -266,63 +294,112 @@ void init_linked_list(linked_list *ll, const size_t element_size) {
     ll->element_size = element_size;
 
     ll->head = malloc(sizeof(node));
-    ll->head->data = malloc(element_size);
-    ll->head->element_size = element_size;
-    ll->head->next = ll->tail;
-    ll->head->prev = NULL;
-
     ll->tail = malloc(sizeof(node));
+
+    ll->head->data = malloc(element_size);
     ll->tail->data = malloc(element_size);
-    ll->tail->element_size = element_size;
-    ll->tail->next = NULL;
+
+    ll->head->next = ll->tail;
     ll->tail->prev = ll->head;
 
-    ll->size = 2;
+    ll->size = 0;
 }
 
-void set_linked_list_head(linked_list *ll, const void *item, const size_t item_size) {
-    if (item_size != ll->element_size) {
-        fprintf(stderr, "Type mismatch between the item and the vector.\n");
-        return;
-    }
-
-    if (!ll->head) {
-        fprintf(stderr, "Head is not allocated, please initialize the linked list.\n");
-        return;
-    }
-    memcpy(ll->head->data, item, ll->element_size);
+void *get_linked_list_head(const linked_list *ll) {
+    return ll->tail->prev;
 }
-void set_linked_list_tail(linked_list *ll, const void *item, const size_t item_size) {
-    if (item_size != ll->element_size) {
-        fprintf(stderr, "Type mismatch between the item and the vector.\n");
-        return;
-    }
 
-    if (!ll->tail) {
-        fprintf(stderr, "Tail is not allocated, please initialize the linked list.\n");
-        return;
-    }
-    memcpy(ll->tail->data, item, ll->element_size);
+void *get_linked_list_tail(const linked_list *ll) {
+    return ll->head->next;
+}
+
+size_t linked_list_size(linked_list *ll) {
+    return ll->size;
 }
 
 void free_node(node *n) {
     free(n->data);
     free(n);
+    n->data = NULL;
 }
 
 void free_linked_list(linked_list *ll) {
-    while (ll->head != NULL) {
-        free(ll->head->data);
-        free(ll->head);
+    while (ll->head) {
+        free_node(ll->head);
         ll->head = ll->head->next;
     }
     free(ll);
 }
 
 void linked_list_info_log(linked_list *ll) {
-    node *tmp = ll->head;
-    while (tmp != NULL) {
+    node *tmp = ll->head->next;
+    size_t counter=0;
+    while (tmp) {
+        if (counter++ == ll->size) break;
         printf("%d\n", *(int*)(tmp->data));
         tmp = tmp->next;
     }
+    printf("size: %zu\n", ll->size);
 }
+
+// queue implementation
+
+typedef struct queue {
+    linked_list *queue_data;
+} queue;
+
+queue *init_queue_ret(const size_t element_size) {
+    queue *q = malloc(sizeof(queue));
+    q->queue_data = init_linked_list_ret(element_size);
+    return q;
+}
+
+void init_queue(queue **q, const size_t element_size) {
+    if (!*q) *q = malloc(sizeof(queue));
+    (*q)->queue_data = init_linked_list_ret(element_size);
+}
+
+void *queue_front(const queue *q) {
+    return get_linked_list_head(q->queue_data);
+}
+
+void *queue_back(const queue *q) {
+    return get_linked_list_tail(q->queue_data);
+}
+
+void queue_push(queue *q, const void *data, const size_t element_size) {
+    node_push_back(q->queue_data, init_node_ret(data, element_size));
+}
+
+void queue_pop(queue *q) {
+    delete_node(q->queue_data, q->queue_data->tail->prev);
+}
+
+boolean queue_is_empty(const queue *q) {
+    return q->queue_data->size == 0;
+}
+
+size_t queue_size(const queue *q) {
+    return q->queue_data->size;
+}
+
+void queue_free(queue *q) {
+    free_linked_list(q->queue_data);
+}
+
+void queue_info_log(queue *q) {
+    linked_list_info_log(q->queue_data);
+}
+
+// unordered map impl
+
+typedef struct unorder_kv_pair {
+    void *key;
+    void *val;
+    size_t key_element_size;
+    size_t val_element_size;
+} unorder_kv_pair;
+
+typedef struct unorder_kv_pair *unorder_map;
+
+// implement linked list bucket system with hashing function.

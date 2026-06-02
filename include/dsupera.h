@@ -32,7 +32,7 @@ void vec_all_occurrences_of(array *output, vector *vec, const void *item, const 
 void vec_concat(vector *dest, const vector *src);
 void vec_clear(vector *vec);
 
-int vec_is_empty(const vector *vec);
+boolean vec_is_empty(const vector *vec);
 size_t vec_size(const vector *vec);
 size_t vec_capacity(const vector *vec);
 
@@ -49,18 +49,41 @@ typedef struct linked_list linked_list;
 
 node *init_node_ret(const void *data, const size_t element_size);
 void init_node(node **n, const void *data, const size_t element_size);
-void add_node(linked_list *ll, node *n);
-void delete_node(node *n);
+void node_push_front(linked_list *ll, node *n);
+void node_push_back(linked_list *ll, node *n);
+void delete_node(linked_list *ll, node *n);
 
 linked_list *init_linked_list_ret(const size_t element_size);
 void init_linked_list(linked_list *ll, const size_t element_size);
+void *get_linked_list_head(const linked_list *ll);
+void *get_linked_list_tail(const linked_list *ll);
+size_t linked_list_size(linked_list *ll);
 
-void set_linked_list_head(linked_list *ll, const void *item, const size_t item_size);
-void set_linked_list_tail(linked_list *ll, const void *item, const size_t item_size);
+
 
 void free_node(node *n);
 void free_linked_list(linked_list *ll);
 
-void linked_list_info_log(linked_list *ll);
+void linked_list_info_log(linked_list *ll); // TODO: add more complex linked list functions
+
+// queue (with doubly linked list implementation)
+
+typedef struct queue queue;
+
+queue *init_queue_ret(const size_t element_size);
+void init_queue(queue **q, const size_t element_size);
+
+void *queue_front(const queue *q);
+void *queue_back(const queue *q);
+void queue_push(queue *q, const void *data,
+const size_t element_size);
+void queue_pop(queue *q);
+
+boolean queue_is_empty(const queue *q);
+size_t queue_size(const queue *q);
+
+void queue_free(queue *q);
+
+void queue_info_log(queue *q);
 
 #endif
