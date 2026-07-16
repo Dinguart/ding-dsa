@@ -1,6 +1,50 @@
 #include "dsupera.h"
 
-// primitives for ease of use
+// structs
+
+typedef struct object {
+    const type_info *ti;
+    void *data;
+    size_t element_size;
+} object;
+
+typedef struct vector {
+    object obj;
+    size_t max_limit;    // stores max capacity of vec
+    size_t size; // size of element in bytes
+} vector;
+
+typedef struct node {
+    object obj;
+    node *next;
+    node *prev;
+} node;
+
+typedef struct linked_list {
+    node *head;
+    node *tail;
+
+    size_t size;
+    size_t element_size;
+} linked_list;
+
+typedef struct queue {
+    linked_list *queue_data;
+} queue;
+
+typedef struct pair {
+    object left;
+    object right;
+} pair;
+
+typedef struct unorder_map {
+    vector *buckets;
+    size_t bucket_size;
+    size_t num_kv_pairs;
+    float max_load_f;
+} unorder_map;
+
+// primitive type info functions for ease of use
 
 static void print_bool(const void *item) { printf("%s\n", *(bool*)item?"true":"false"); }
 static void print_char(const void *item) { printf("%c\n", *(char*)item); }
@@ -18,40 +62,108 @@ static void print_float(const void *item) { printf("%f\n", *(float*)item); }
 static void print_double(const void *item) { printf("%lf\n", *(double*)item); }
 static void print_longdouble(const void *item) { printf("%Lf\n", *(long double*)item); }
 static void print_size_t(const void *item) { printf("%zu\n", *(size_t*)item); }
+static void print_string(const void *item) { printf("%s\n", *(char**)item); }
 
-const type_info TI_BOOL = { "bool", sizeof(bool), print_bool };
-const type_info TI_CHAR = { "char", sizeof(char), print_char };
-const type_info TI_SCHAR = { "signed char", sizeof(signed char), print_schar };
-const type_info TI_UCHAR = { "unsigned char", sizeof(unsigned char), print_uchar };
-const type_info TI_SHORT = { "short", sizeof(short), print_short };
-const type_info TI_USHORT = { "unsigned short", sizeof(unsigned short), print_ushort };
-const type_info TI_INT = { "int", sizeof(int), print_int };
-const type_info TI_UINT = { "unsigned int", sizeof(unsigned), print_uint };
-const type_info TI_LONG = { "long", sizeof(long), print_long };
-const type_info TI_ULONG = { "unsigned long", sizeof(unsigned long), print_ulong };
-const type_info TI_LONGLONG = { "long long", sizeof(long long), print_longlong };
-const type_info TI_ULONGLONG = { "unsigned long long", sizeof(unsigned long long), print_ulonglong };
-const type_info TI_FLOAT = { "float", sizeof(float), print_float };
-const type_info TI_DOUBLE = { "double", sizeof(double), print_double };
-const type_info TI_LONGDOUBLE = { "long double", sizeof(long double), print_longdouble };
-const type_info TI_SIZE_T = { "size_t", sizeof(size_t), print_size_t };
+static void print_type_info_pair(const void *item) {
+    const pair *p = (const pair*)item;
+    p->left.ti->print(p->left.data);
+    p->right.ti->print(p->right.data);
+}
 
-// regular lib impl
+// utility (for creating type info pairs.)
 
-typedef struct object {
-    const type_info *ti;
-    void *data;
-    size_t element_size;
-} object;
+type_info *create_type_info_pair(const type_info *ti_first, const type_info *ti_second) {
+    type_info *ti_pair = malloc(sizeof(type_info));
+
+    size_t name_size = strlen(ti_first->type_name) + strlen(ti_second->type_name);
+    char *pair_name = malloc(6 + name_size);
+    strcat(pair_name, "pair ");
+    strcat(pair_name, ti_first->type_name);
+    strcat(pair_name, ti_second->type_name);
+    pair_name[5 + name_size] = '\0';
+    ti_pair->type_name = pair_name;
+
+    size_t pair_alignment = (size_t)max(ti_first->type_size, ti_second->type_size) == ti_first->type_size ? ti_first->alignment : ti_second->alignment;
+
+    ti_pair->type_size = max(ti_first->type_size, ti_second->type_size) + pair_alignment;
+    ti_pair->alignment = pair_alignment;
+
+    ti_pair->print = print_type_info_pair;
+    return ti_pair;
+}
+
+// hash functions
+
+static size_t fmix32(const void *item) {
+    size_t h = *(size_t*)item;
+    h ^= h >> 16;
+	h *= 0x85ebca6bu;
+	h ^= h >> 13;
+	h *= 0xc2b2ae35u;
+	h ^= h >> 16;
+
+	return h;
+}
+
+static unsigned long fmix64(const void *item) {
+    unsigned long h = *(unsigned long*)item;
+    h ^= h >> 33;
+    h *= 0xff51afd7ed558ccd;
+    h ^= h >> 33;
+    h *= 0xc4ceb9fe1a85ec53;
+    h ^= h >> 33;
+    return h;
+}
+
+static size_t float_hash(const void *item) {
+    float n_f = (*(float*)item) != 0 ? (*(float*)item) : 0.0;
+    unsigned long b;
+    memcpy(&b, &n_f, sizeof(b));
+    return fmix32(&b);
+}
+
+static unsigned long str_hash(const void *item) {
+    unsigned long h = 0x1505;
+    int c;
+    const unsigned char *s = *(const unsigned char**)item;
+    while ((c = *s++)) {
+        h = ((h << 5) + h) + c;
+    }
+    return h;
+}
+
+// equality functions
+
+static bool equal_float(const void *f1, const void *f2) {
+    unsigned long b1, b2;
+    float f1_f = *(float*)f1;
+    float f2_f = *(float*)f2;
+    memcpy(&b1, &f1_f, sizeof(b1));
+    memcpy(&b2, &f2_f, sizeof(b2));
+    return f1_f == f2_f || b1 == b2;
+}
+
+// default lib type info objects.
+
+const type_info TI_BOOL = { "bool", sizeof(bool), alignof(bool), print_bool };
+const type_info TI_CHAR = { "char", sizeof(char), alignof(char), print_char };
+const type_info TI_SCHAR = { "signed char", sizeof(signed char), alignof(signed char), print_schar };
+const type_info TI_UCHAR = { "unsigned char", sizeof(unsigned char), alignof(unsigned char), print_uchar };
+const type_info TI_SHORT = { "short", sizeof(short), alignof(short), print_short };
+const type_info TI_USHORT = { "unsigned short", sizeof(unsigned short), alignof(unsigned short), print_ushort };
+const type_info TI_INT = { "int", sizeof(int), alignof(int), print_int };
+const type_info TI_UINT = { "unsigned int", sizeof(unsigned), alignof(unsigned), print_uint };
+const type_info TI_LONG = { "long", sizeof(long), alignof(long), print_long };
+const type_info TI_ULONG = { "unsigned long", sizeof(unsigned long), alignof(unsigned long), print_ulong };
+const type_info TI_LONGLONG = { "long long", sizeof(long long), alignof(long long), print_longlong };
+const type_info TI_ULONGLONG = { "unsigned long long", sizeof(unsigned long long), alignof(unsigned long long), print_ulonglong };
+const type_info TI_FLOAT = { "float", sizeof(float), alignof(float), print_float };
+const type_info TI_DOUBLE = { "double", sizeof(double), alignof(double), print_double };
+const type_info TI_LONGDOUBLE = { "long double", sizeof(long double), alignof(long double), print_longdouble };
+const type_info TI_SIZE_T = { "size_t", sizeof(size_t), alignof(size_t), print_size_t };
+const type_info TI_STRING = { "string", sizeof(char*), alignof(char*), print_string };
 
 // vector implementation
-
-typedef struct vector {
-    object obj;
-    size_t max_limit;    // stores max capacity of vec
-    size_t size; // size of element in bytes
-} vector;
-
 void init_vector(vector **vec, const type_info *ti) {
     if (!ti) {
         fprintf(stderr, "Must specify type info to use vector.\n");
@@ -223,7 +335,6 @@ void vec_shrink_to_fit(vector *vec) {
     vec->obj.data = realloc(vec->obj.data, vec->max_limit * vec->obj.element_size);
 }
 
-// replace with future print functionality
 void vec_info_log(const vector *v) {
     if (!v) {
         fprintf(stderr, "Vector is null.\n");
@@ -239,43 +350,40 @@ void vec_info_log(const vector *v) {
 
 
 // linked list implementation
+node *init_node_ret(const void *data, const type_info *ti) {
+    if (!ti) {
+        fprintf(stderr, "Must set type info to create a node.\n");
+        return NULL;
+    }
 
-typedef struct node {
-    object obj;
-    node *next;
-    node *prev;
-} node;
-
-typedef struct linked_list {
-    node *head;
-    node *tail;
-    size_t size;
-    size_t element_size;
-} linked_list;
-
-node *init_node_ret(const void *data, const size_t element_size) {
     node *n = malloc(sizeof(node));
-    n->obj.data = malloc(element_size);
-    n->obj.element_size = element_size;
+    n->obj.data = malloc(ti->type_size);
+    n->obj.element_size = ti->type_size;
+    n->obj.ti = ti;
     n->next = NULL;
     n->prev = NULL;
-    memcpy(n->obj.data, data, element_size);
+    memcpy(n->obj.data, data, ti->type_size);
     return n;
 }
-void init_node(node **n, const void *data, const size_t element_size) {
+void init_node(node **n, const void *data, const type_info *ti) {
+    if (!ti) {
+        fprintf(stderr, "Must set type info to create a node.\n");
+        return;
+    }
     if (!*n) {
         *n = malloc(sizeof(node));
     }
 
-    (*n)->obj.data = malloc(element_size);
-    (*n)->obj.element_size = element_size;
+    (*n)->obj.data = malloc(ti->type_size);
+    (*n)->obj.element_size = ti->type_size;
+    (*n)->obj.ti = ti;
     (*n)->next = NULL;
     (*n)->prev = NULL;
-    memcpy((*n)->obj.data, data, element_size);
+    memcpy((*n)->obj.data, data, ti->type_size);
 }
 
 void node_push_front(linked_list *ll, node *n) {
-    if (ll->element_size != n->obj.element_size) {
+    if (ll->head->obj.ti != n->obj.ti) {
         fprintf(stderr, "Node is of different type.\n");
         return;
     }
@@ -294,7 +402,7 @@ void node_push_front(linked_list *ll, node *n) {
 }
 
 void node_push_back(linked_list *ll, node *n) {
-    if (ll->element_size != n->obj.element_size) {
+    if (ll->head->obj.ti != n->obj.ti) {
         fprintf(stderr, "Node is of different type.\n");
         return;
     }
@@ -327,15 +435,23 @@ void delete_node(linked_list *ll, node *n) {
     ll->size--;
 }
 
-linked_list *init_linked_list_ret(const size_t element_size) {
+linked_list *init_linked_list_ret(const type_info *ti) {
+    if (!ti) {
+        fprintf(stderr, "Type info must be set for the linked list.\n");
+        return NULL;
+    }
     linked_list *ll = malloc(sizeof(linked_list));
-    ll->element_size = element_size;
+    ll->element_size = ti->type_size;
 
     ll->head = malloc(sizeof(node));
     ll->tail = malloc(sizeof(node));
 
-    ll->head->obj.data = malloc(element_size);
-    ll->tail->obj.data = malloc(element_size);
+    ll->head->obj.data = malloc(ti->type_size);
+    ll->tail->obj.data = malloc(ti->type_size);
+    ll->head->obj.element_size = ti->type_size;
+    ll->tail->obj.element_size = ti->type_size;
+    ll->head->obj.ti = ti;
+    ll->tail->obj.ti = ti;
 
     ll->head->next = ll->tail;
     ll->tail->prev = ll->head;
@@ -344,14 +460,22 @@ linked_list *init_linked_list_ret(const size_t element_size) {
     return ll;
 }
 
-void init_linked_list(linked_list *ll, const size_t element_size) {
-    ll->element_size = element_size;
+void init_linked_list(linked_list *ll, const type_info *ti) {
+    if (!ti) {
+        fprintf(stderr, "Type info must be set for the linked list.\n");
+        return;
+    }
+    ll->element_size = ti->type_size;
 
     ll->head = malloc(sizeof(node));
     ll->tail = malloc(sizeof(node));
 
-    ll->head->obj.data = malloc(element_size);
-    ll->tail->obj.data = malloc(element_size);
+    ll->head->obj.data = malloc(ti->type_size);
+    ll->tail->obj.data = malloc(ti->type_size);
+    ll->head->obj.element_size = ti->type_size;
+    ll->tail->obj.element_size = ti->type_size;
+    ll->head->obj.ti = ti;
+    ll->tail->obj.ti = ti;
 
     ll->head->next = ll->tail;
     ll->tail->prev = ll->head;
@@ -390,27 +514,34 @@ void linked_list_info_log(linked_list *ll) {
     size_t counter=0;
     while (tmp) {
         if (counter++ == ll->size) break;
-        printf("%d\n", *(int*)(tmp->obj.data));
+        tmp->obj.ti->print(tmp->obj.data);
+        tmp = tmp->next;
+    }
+    printf("size: %zu\n", ll->size);
+}
+
+static void linked_list_print(const void *item) {
+    const linked_list *ll = (linked_list*)item;
+    node *tmp = ll->head->next;
+    size_t ctr=0;
+    while (tmp) {
+        if (ctr++ == ll->size) break;
+        tmp->obj.ti->print(tmp->obj.data);
         tmp = tmp->next;
     }
     printf("size: %zu\n", ll->size);
 }
 
 // queue implementation
-
-typedef struct queue {
-    linked_list *queue_data;
-} queue;
-
-queue *init_queue_ret(const size_t element_size) {
+queue *init_queue_ret(const type_info *ti) {
     queue *q = malloc(sizeof(queue));
-    q->queue_data = init_linked_list_ret(element_size);
+    q->queue_data = init_linked_list_ret(ti);
     return q;
 }
 
-void init_queue(queue **q, const size_t element_size) {
+void init_queue(queue **q, const type_info *ti) {
     if (!*q) *q = malloc(sizeof(queue));
-    (*q)->queue_data = init_linked_list_ret(element_size);
+    (*q)->queue_data = init_linked_list_ret(ti);
 }
 
 void *queue_front(const queue *q) {
@@ -421,8 +552,8 @@ void *queue_back(const queue *q) {
     return get_linked_list_tail(q->queue_data);
 }
 
-void queue_push(queue *q, const void *data, const size_t element_size) {
-    node_push_back(q->queue_data, init_node_ret(data, element_size));
+void queue_push(queue *q, const void *data, const type_info *ti) {
+    node_push_back(q->queue_data, init_node_ret(data, ti));
 }
 
 void queue_pop(queue *q) {
@@ -446,35 +577,45 @@ void queue_info_log(queue *q) {
 }
 
 // pair impl
-
-typedef struct pair {
-    object left;
-    object right;
-} pair;
-
-pair *init_pair_ret(const void *left, const size_t left_elem_size, const void *right, const size_t right_elem_size) {
+pair *init_pair_ret(const void *left, const type_info *ti_left, const void *right, const type_info *ti_right) {
+    if (!ti_left || !ti_right) {
+        fprintf(stderr, "Must create type info for a pair.\n");
+        return NULL;
+    }
     pair *p = malloc(sizeof(pair));
 
-    p->left.data = malloc(left_elem_size);
-    p->right.data = malloc(right_elem_size);
+    p->left.data = malloc(ti_left->type_size);
+    p->right.data = malloc(ti_right->type_size);
 
-    p->left.element_size = left_elem_size;
-    p->right.element_size = right_elem_size;
+    p->left.element_size = ti_left->type_size;
+    p->right.element_size = ti_right->type_size;
 
-    memcpy(p->left.data, left, left_elem_size);
-    memcpy(p->right.data, right, right_elem_size);
+    p->left.ti = ti_left;
+    p->right.ti = ti_right;
+
+    memcpy(p->left.data, left, ti_left->type_size);
+    memcpy(p->right.data, right, ti_right->type_size);
     return p;
 }
 
-void init_pair(pair **p, const void *left, const size_t left_elem_size, const void *right, const size_t right_elem_size) {
+void init_pair(pair **p, const void *left, const type_info *ti_left, const void *right, const type_info *ti_right) {
+    if (!ti_left || !ti_right) {
+        fprintf(stderr, "Must create type info for a pair.\n");
+        return;
+    }
     if (!*p) *p = malloc(sizeof(pair));
 
-    (*p)->left.data = malloc(left_elem_size);
-    (*p)->right.data = malloc(right_elem_size);
-    (*p)->left.element_size = left_elem_size;
-    (*p)->right.element_size = right_elem_size;
-    memcpy((*p)->left.data, left, left_elem_size);
-    memcpy((*p)->right.data, right, right_elem_size);
+    (*p)->left.data = malloc(ti_left->type_size);
+    (*p)->right.data = malloc(ti_right->type_size);
+
+    (*p)->left.element_size = ti_left->type_size;
+    (*p)->right.element_size = ti_right->type_size;
+
+    (*p)->left.ti = ti_left;
+    (*p)->right.ti = ti_right;
+
+    memcpy((*p)->left.data, left, ti_left->type_size);
+    memcpy((*p)->right.data, right, ti_right->type_size);
 }
 
 void pair_free(pair *p) {
@@ -484,25 +625,83 @@ void pair_free(pair *p) {
 }
 
 void pair_info_log(pair *p) {
-    printf("%d %s\n", *(int*)p->left.data, (char*)p->right.data);
+    p->left.ti->print(p->left.data);
+    p->right.ti->print(p->right.data);
 }
 
 // unordered map impl
-
-typedef struct unorder_map {
-    linked_list *buckets;
-
-    size_t bucket_size;
-    size_t num_kv_pairs;
-    float max_load_f;
-} unorder_map;
-
 // implement linked list bucket system with hashing function.
 
-unorder_map *init_u_map_ret(const size_t key_elem_size, const size_t val_elem_size) {
 
+unorder_map *init_u_map_ret(const type_info *ti_key, const type_info *ti_val) {
+    unorder_map *um = malloc(sizeof(unorder_map));
+    pair *p = malloc(sizeof(pair));
+    p->left.data = malloc(ti_key->type_size);
+    p->right.data = malloc(ti_val->type_size);
+
+    p->left.element_size = ti_key->type_size;
+    p->right.element_size = ti_val->type_size;
+
+    p->left.ti = ti_key;
+    p->right.ti = ti_val;
+
+    const type_info *pair_info = create_type_info_pair(ti_key, ti_val);
+
+    linked_list *l = init_linked_list_ret(pair_info);
+
+    const type_info ll_info = {
+        .type_name = "linked list pair",
+        .type_size = sizeof(*l),
+        .alignment = alignof(*l),
+        .print = linked_list_print
+        // todo: add a static equal method.
+    };
+
+    um->buckets = init_vector_ret(&ll_info);
+    um->bucket_size = 0;
+    um->num_kv_pairs = 0;
+    um->max_load_f = 1.0f;
 }
 
-void init_u_map(unorder_map *um, const size_t key_elem_size, const size_t val_elem_size) {
+void init_u_map(unorder_map **um, const type_info *ti_key, const type_info *ti_val) {
+    if (!ti_key || !ti_val) {
+        fprintf(stderr, "Must create type info for a key value pair.\n");
+        return;
+    }
+    if (!*um) *um = malloc(sizeof(unorder_map));
 
+    pair *p = malloc(sizeof(pair));
+    p->left.data = malloc(ti_key->type_size);
+    p->right.data = malloc(ti_val->type_size);
+
+    p->left.element_size = ti_key->type_size;
+    p->right.element_size = ti_val->type_size;
+
+    p->left.ti = ti_key;
+    p->right.ti = ti_val;
+
+    const type_info *pair_info = create_type_info_pair(ti_key, ti_val);
+
+    linked_list *l = init_linked_list_ret(pair_info);
+
+    const type_info ll_info = {
+        .type_name = "linked list pair",
+        .type_size = sizeof(*l),
+        .alignment = alignof(*l),
+        .print = linked_list_print
+        // todo: add a static equal method.
+    };
+
+    (*um)->buckets = init_vector_ret(&ll_info);
+    (*um)->bucket_size = 0;
+    (*um)->num_kv_pairs = 0;
+    (*um)->max_load_f = 1.0f;
+}
+
+static bool umap_maxloadf_over(const unorder_map *um) {
+    return um->bucket_size / um->num_kv_pairs > um->max_load_f;
+}
+
+static void umap_hash(unorder_map *um, void *key) {
+    int hashed_key = um->
 }

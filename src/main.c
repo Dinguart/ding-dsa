@@ -86,21 +86,21 @@ void test_mem_funcs() {
 }
 
 void test_linked_list_init() {
-    linked_list *l = init_linked_list_ret(sizeof(int));
+    linked_list *l = init_linked_list_ret(&TI_INT);
     int a=1;
     int b=2;
     int c=3;
     int d=4;
 
-    node *a_node = init_node_ret(&a, sizeof(int));
-    node *b_node = init_node_ret(&b, sizeof(int));
-    node *c_node = init_node_ret(&c, sizeof(int));
+    node *a_node = init_node_ret(&a, &TI_INT);
+    node *b_node = init_node_ret(&b, &TI_INT);
+    node *c_node = init_node_ret(&c, &TI_INT);
     node_push_front(l, a_node);
     node_push_front(l, b_node);
     node_push_front(l, c_node);
 
     node *d_node = NULL;
-    init_node(&d_node, &d, sizeof(int));
+    init_node(&d_node, &d, &TI_INT);
     node_push_back(l, d_node);
 
     linked_list_info_log(l);
@@ -112,13 +112,13 @@ void test_linked_list_init() {
 }
 
 void test_linked_list_free() {
-    linked_list *l = init_linked_list_ret(sizeof(int));
+    linked_list *l = init_linked_list_ret(&TI_INT);
     int a=1;
     int b=2;
     int c=3;
-    node *a_node = init_node_ret(&a, sizeof(int));
-    node *b_node = init_node_ret(&b, sizeof(int));
-    node *c_node = init_node_ret(&c, sizeof(int));
+    node *a_node = init_node_ret(&a, &TI_INT);
+    node *b_node = init_node_ret(&b, &TI_INT);
+    node *c_node = init_node_ret(&c, &TI_INT);
     node_push_front(l, a_node);
     node_push_front(l, b_node);
     node_push_front(l, c_node);
@@ -128,13 +128,13 @@ void test_linked_list_free() {
 }
 
 void test_queue_init() {
-    queue *q = init_queue_ret(sizeof(int));
+    queue *q = init_queue_ret(&TI_INT);
     int a=1;
     int b=2;
     int c=3;
-    queue_push(q, &a, sizeof(int));
-    queue_push(q, &b, sizeof(int));
-    queue_push(q, &c, sizeof(int));
+    queue_push(q, &a, &TI_INT);
+    queue_push(q, &b, &TI_INT);
+    queue_push(q, &c, &TI_INT);
 
     queue_pop(q);
 
@@ -146,18 +146,20 @@ void test_queue_init() {
 void test_pair_init() {
     int a=1;
     char *b="Fuck you";
-    pair *p = init_pair_ret(&a, sizeof(int), b, strlen(b));
+    pair *p = init_pair_ret(&a, &TI_INT, &b, &TI_STRING);
     pair_info_log(p);
     free(p);
 }
 
+
+
 int main(void) {
-    //    test_front_back();
-    test_find();
+    //test_front_back();
+    //test_find();
     //test_concat();
     //test_mem_funcs();
     //test_linked_list_init(); // fix ordering of ll add node.
     //test_linked_list_free();
     //test_queue_init();
-    //test_pair_init();
+    test_pair_init();
 }
