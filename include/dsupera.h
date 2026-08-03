@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdbool.h>
 #include <stdalign.h>
+#include <math.h>
 
 #define max(a, b) ((a) > (b) ? (a) : (b))
 
@@ -16,7 +17,7 @@ typedef struct type_info {
     size_t type_size;
     size_t alignment;
     void (*print)(const void *);
-    size_t (*hash)(const void *); // for maps
+    unsigned long (*hash)(const void *); // for maps
     bool (*equal)(const void *, const void *);
 } type_info;
 
@@ -53,6 +54,7 @@ vector *init_vector_ret(const type_info *ti);
 
 void vec_push_back(vector *vec, const void *item, const type_info *ti);
 void vec_pop_back(vector *vec);
+void vec_insert(vector *vec, const void *item, const type_info *ti, size_t idx);
 void* vec_front(const vector *vec);
 void* vec_back(const vector *vec);
 void* vec_item_at(const vector *vec, const size_t index);
@@ -131,5 +133,6 @@ typedef struct unorder_map unorder_map;
 
 unorder_map *init_u_map_ret(const type_info *ti_key, const type_info *ti_val);
 void init_u_map(unorder_map **um, const type_info *ti_key, const type_info *ti_val);
+void umap_rehash(unorder_map *um);
 
 #endif

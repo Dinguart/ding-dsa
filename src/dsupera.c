@@ -39,10 +39,21 @@ typedef struct pair {
 
 typedef struct unorder_map {
     vector *buckets;
-    size_t bucket_size;
     size_t num_kv_pairs;
     float max_load_f;
 } unorder_map;
+
+// some helpers
+
+static bool is_prime(int n) {
+    if (n == 2 || n == 3) return true;
+    int s = (int)sqrt(n);
+    for (int i=1; i<s; ++i) {
+        if (n % i == 0) return false;
+    }
+    return true;
+}
+
 
 // primitive type info functions for ease of use
 
@@ -217,6 +228,24 @@ void vec_pop_back(vector *vec) {
         return;
     }
     vec->size--;
+}
+
+void vec_insert(vector *vec, const void *item, const type_info *ti, size_t idx) {
+        if (!ti || ti != vec->obj.ti) {
+        fprintf(stderr, "Type mismatch between the item and the vector.\n");
+        return;
+    }
+    if (vec->size+1 > vec->max_limit) {
+        vec->max_limit *= 2;
+        vec->obj.data = realloc(vec->obj.data, vec->max_limit * vec->obj.element_size);
+    }
+    if (idx >= vec->max_limit) {
+        fprintf(stderr, "Index exceeds vector size.\n");
+        return;
+    }
+    void *dest = (char *)vec->obj.data + (idx * vec->obj.element_size);
+    memcpy(dest, item, vec->obj.element_size);
+    vec->size++;
 }
 
 void *vec_front(const vector *vec) {
@@ -658,7 +687,7 @@ unorder_map *init_u_map_ret(const type_info *ti_key, const type_info *ti_val) {
     };
 
     um->buckets = init_vector_ret(&ll_info);
-    um->bucket_size = 0;
+    vec_reserve(um->buckets, 1);
     um->num_kv_pairs = 0;
     um->max_load_f = 1.0f;
 }
@@ -693,15 +722,52 @@ void init_u_map(unorder_map **um, const type_info *ti_key, const type_info *ti_v
     };
 
     (*um)->buckets = init_vector_ret(&ll_info);
-    (*um)->bucket_size = 0;
+    vec_reserve((*um)->buckets, 1);
     (*um)->num_kv_pairs = 0;
     (*um)->max_load_f = 1.0f;
 }
 
-static bool umap_maxloadf_over(const unorder_map *um) {
-    return um->bucket_size / um->num_kv_pairs > um->max_load_f;
+void umap_rehash(unorder_map *um) {
+    if (um->buckets->size / um->num_kv_pairs <= um->max_load_f) return;
+
+    int i = (int)um->buckets->size;
+    while (!is_prime(i)) {
+        ++i;
+    }
+    vector *new_buckets = init_vector_ret(um->buckets->obj.ti);
+    vec_reserve(new_buckets, (size_t)i);
+    
+    for (size_t i = 0; i < v->size; ++i) {
+        linked_list *ll = (linked_list*)(um->buckets->obj.data + (um->buckets->obj.element_size * i));
+        node *tmp = ll->head->next;
+        size_t counter=0;
+        while (tmp) {
+            if (counter++ == ll->size) break;
+            unsigned long hash = tmp->obj.ti->hash(tmp->obj.data);
+            tmp = tmp->next;
+            size_t idx = hash % um->buckets->size;
+            vec_insert(new_buckets, ll, ll->head->obj.ti, idx);
+        }
+    }
+    vec_clear(um->buckets);
+    um->buckets = new_buckets;
 }
 
-static void umap_hash(unorder_map *um, void *key) {
+
+void umap_hash(unorder_map *um, void *key) {
     int hashed_key = um->
+}
+
+void umap_insert(unorder_map *um, const void *key, const type_info *ti_key, const void *val, const type_info *ti_val) {
+    if (!ti_key || !ti_val) {
+        fprintf(stderr, "Must initialize type info structs.\n");
+        return;
+    }
+    
+    pair *p = init_pair_ret(key, ti_key, val, ti_val);
+    const type_info *pi = create_type_info_pair(ti_key, ti_val);
+    //if (pi != um->
+    
+    node *pair_node = init_node_ret(p, pi);
+    
 }
