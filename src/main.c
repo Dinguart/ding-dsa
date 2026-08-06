@@ -151,7 +151,21 @@ void test_pair_init() {
     free(p);
 }
 
+void test_umap_init() {
+    unorder_map *u = init_u_map_ret(&TI_INT, &TI_INT);
+    int a_key = 1;
+    int a_val = 10;
+    int b_key = 2;
+    int b_val = 20;
+    int c_key = 3;
+    int c_val = 30;
 
+    if (!umap_insert(u, &a_key, &TI_INT, &a_val, &TI_INT)) return;
+    int *supposed_a_val = (int*)umap_getval(u, &a_key, &TI_INT);
+    umap_free(u);
+    if (!supposed_a_val) return;
+    printf("%d equals %d\n", a_val, *supposed_a_val);
+}
 
 int main(void) {
     //test_front_back();
@@ -161,5 +175,6 @@ int main(void) {
     //test_linked_list_init(); // fix ordering of ll add node.
     //test_linked_list_free();
     //test_queue_init();
-    test_pair_init();
+    //test_pair_init();
+    test_umap_init();
 }

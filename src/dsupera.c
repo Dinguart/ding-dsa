@@ -39,6 +39,8 @@ typedef struct pair {
 
 typedef struct unorder_map {
     vector *buckets;
+    const type_info *ti_key;
+    const type_info *ti_val;
     size_t num_kv_pairs;
     float max_load_f;
 } unorder_map;
@@ -53,7 +55,6 @@ static bool is_prime(int n) {
     }
     return true;
 }
-
 
 // primitive type info functions for ease of use
 
@@ -85,9 +86,11 @@ static void print_type_info_pair(const void *item) {
 
 type_info *create_type_info_pair(const type_info *ti_first, const type_info *ti_second) {
     type_info *ti_pair = malloc(sizeof(type_info));
+    memset(ti_pair, 0, sizeof(type_info));
 
     size_t name_size = strlen(ti_first->type_name) + strlen(ti_second->type_name);
     char *pair_name = malloc(6 + name_size);
+    memset(pair_name, 0, sizeof(char));
     strcat(pair_name, "pair ");
     strcat(pair_name, ti_first->type_name);
     strcat(pair_name, ti_second->type_name);
@@ -101,6 +104,35 @@ type_info *create_type_info_pair(const type_info *ti_first, const type_info *ti_
 
     ti_pair->print = print_type_info_pair;
     return ti_pair;
+}
+
+// utility (stack allocated structs for local creations)
+
+static linked_list init_linked_list_ret_stack(const type_info *ti) {
+    if (!ti) {
+        fprintf(stderr, "Type info must be set for the linked list.\n");
+    }
+    linked_list ll = {
+        .head = malloc(sizeof(node)),
+        .tail = malloc(sizeof(node)),
+        .size = 0,
+        .element_size = ti->type_size
+    };
+    memset(ll.head, 0, sizeof(node));
+    memset(ll.tail, 0, sizeof(node));
+
+    ll.head->obj.data = malloc(ti->type_size);
+    ll.tail->obj.data = malloc(ti->type_size);
+    ll.head->obj.element_size = ti->type_size;
+    ll.tail->obj.element_size = ti->type_size;
+    ll.head->obj.ti = ti;
+    ll.tail->obj.ti = ti;
+
+    ll.head->next = ll.tail;
+    ll.tail->prev = ll.head;
+
+    ll.size = 0;
+    return ll;
 }
 
 // hash functions
@@ -162,13 +194,13 @@ const type_info TI_SCHAR = { "signed char", sizeof(signed char), alignof(signed 
 const type_info TI_UCHAR = { "unsigned char", sizeof(unsigned char), alignof(unsigned char), print_uchar };
 const type_info TI_SHORT = { "short", sizeof(short), alignof(short), print_short };
 const type_info TI_USHORT = { "unsigned short", sizeof(unsigned short), alignof(unsigned short), print_ushort };
-const type_info TI_INT = { "int", sizeof(int), alignof(int), print_int };
+const type_info TI_INT = { "int", sizeof(int), alignof(int), print_int, fmix64 };
 const type_info TI_UINT = { "unsigned int", sizeof(unsigned), alignof(unsigned), print_uint };
 const type_info TI_LONG = { "long", sizeof(long), alignof(long), print_long };
 const type_info TI_ULONG = { "unsigned long", sizeof(unsigned long), alignof(unsigned long), print_ulong };
 const type_info TI_LONGLONG = { "long long", sizeof(long long), alignof(long long), print_longlong };
 const type_info TI_ULONGLONG = { "unsigned long long", sizeof(unsigned long long), alignof(unsigned long long), print_ulonglong };
-const type_info TI_FLOAT = { "float", sizeof(float), alignof(float), print_float };
+const type_info TI_FLOAT = { "float", sizeof(float), alignof(float), print_float, float_hash, equal_float };
 const type_info TI_DOUBLE = { "double", sizeof(double), alignof(double), print_double };
 const type_info TI_LONGDOUBLE = { "long double", sizeof(long double), alignof(long double), print_longdouble };
 const type_info TI_SIZE_T = { "size_t", sizeof(size_t), alignof(size_t), print_size_t };
@@ -532,10 +564,10 @@ void free_node(node *n) {
 void free_linked_list(linked_list *ll) {
     node *tmp = ll->head;
     while (tmp) {
-        tmp = ll->head->next;
-        free_node(ll->head);
+        node *tmp_next = tmp->next;
+        free_node(tmp);
+        tmp = tmp_next;
     }
-    free(ll);
 }
 
 void linked_list_info_log(linked_list *ll) {
@@ -664,32 +696,27 @@ void pair_info_log(pair *p) {
 
 unorder_map *init_u_map_ret(const type_info *ti_key, const type_info *ti_val) {
     unorder_map *um = malloc(sizeof(unorder_map));
-    pair *p = malloc(sizeof(pair));
-    p->left.data = malloc(ti_key->type_size);
-    p->right.data = malloc(ti_val->type_size);
-
-    p->left.element_size = ti_key->type_size;
-    p->right.element_size = ti_val->type_size;
-
-    p->left.ti = ti_key;
-    p->right.ti = ti_val;
-
     const type_info *pair_info = create_type_info_pair(ti_key, ti_val);
 
-    linked_list *l = init_linked_list_ret(pair_info);
+    linked_list l = init_linked_list_ret_stack(pair_info);
 
-    const type_info ll_info = {
-        .type_name = "linked list pair",
-        .type_size = sizeof(*l),
-        .alignment = alignof(*l),
-        .print = linked_list_print
-        // todo: add a static equal method.
-    };
 
-    um->buckets = init_vector_ret(&ll_info);
+    type_info *ll_info = malloc(sizeof(type_info));
+    ll_info->type_name = "linked list pair";
+    ll_info->type_size = sizeof(l);
+    ll_info->alignment = alignof(l);
+    ll_info->print = linked_list_print;
+
+    um->buckets = init_vector_ret(ll_info);
+    um->ti_key = ti_key;
+    um->ti_val = ti_val;
     vec_reserve(um->buckets, 1);
+    vec_push_back(um->buckets, &l, ll_info);
+
     um->num_kv_pairs = 0;
     um->max_load_f = 1.0f;
+
+    return um;
 }
 
 void init_u_map(unorder_map **um, const type_info *ti_key, const type_info *ti_val) {
@@ -713,39 +740,40 @@ void init_u_map(unorder_map **um, const type_info *ti_key, const type_info *ti_v
 
     linked_list *l = init_linked_list_ret(pair_info);
 
-    const type_info ll_info = {
-        .type_name = "linked list pair",
-        .type_size = sizeof(*l),
-        .alignment = alignof(*l),
-        .print = linked_list_print
-        // todo: add a static equal method.
-    };
+    type_info *ll_info = malloc(sizeof(type_info));
+    ll_info->type_name = "linked list pair";
+    ll_info->type_size = sizeof(*l);
+    ll_info->alignment = alignof(*l);
+    ll_info->print = linked_list_print;
 
-    (*um)->buckets = init_vector_ret(&ll_info);
+    (*um)->buckets = init_vector_ret(ll_info);
+    (*um)->ti_key = ti_key;
+    (*um)->ti_val = ti_val;
     vec_reserve((*um)->buckets, 1);
+    vec_push_back((*um)->buckets, l, ll_info);
     (*um)->num_kv_pairs = 0;
     (*um)->max_load_f = 1.0f;
 }
 
 void umap_rehash(unorder_map *um) {
-    if (um->buckets->size / um->num_kv_pairs <= um->max_load_f) return;
+    if (um->buckets->max_limit / um->num_kv_pairs <= um->max_load_f) return;
 
-    int i = (int)um->buckets->size;
+    int i = (int)um->buckets->max_limit;
     while (!is_prime(i)) {
         ++i;
     }
     vector *new_buckets = init_vector_ret(um->buckets->obj.ti);
     vec_reserve(new_buckets, (size_t)i);
-    
-    for (size_t i = 0; i < v->size; ++i) {
-        linked_list *ll = (linked_list*)(um->buckets->obj.data + (um->buckets->obj.element_size * i));
+
+    for (size_t i = 0; i < um->buckets->max_limit; ++i) {
+        linked_list *ll = (linked_list*)((char*)um->buckets->obj.data + (um->buckets->obj.element_size * i));
         node *tmp = ll->head->next;
         size_t counter=0;
         while (tmp) {
             if (counter++ == ll->size) break;
             unsigned long hash = tmp->obj.ti->hash(tmp->obj.data);
             tmp = tmp->next;
-            size_t idx = hash % um->buckets->size;
+            size_t idx = hash % um->buckets->max_limit;
             vec_insert(new_buckets, ll, ll->head->obj.ti, idx);
         }
     }
@@ -753,21 +781,60 @@ void umap_rehash(unorder_map *um) {
     um->buckets = new_buckets;
 }
 
-
-void umap_hash(unorder_map *um, void *key) {
-    int hashed_key = um->
-}
-
-void umap_insert(unorder_map *um, const void *key, const type_info *ti_key, const void *val, const type_info *ti_val) {
+bool umap_insert(unorder_map *um, const void *key, const type_info *ti_key, const void *val, const type_info *ti_val) {
     if (!ti_key || !ti_val) {
         fprintf(stderr, "Must initialize type info structs.\n");
-        return;
+        return false;
     }
-    
+    printf("%s\n", ti_key->type_name);
+    printf("%s\n", um->ti_key->type_name);
+    if (ti_key != um->ti_key || ti_val != um->ti_val) {
+        fprintf(stderr, "Must map to appropriate type info structs.\n");
+        return false;
+    }
+
     pair *p = init_pair_ret(key, ti_key, val, ti_val);
     const type_info *pi = create_type_info_pair(ti_key, ti_val);
-    //if (pi != um->
-    
+
     node *pair_node = init_node_ret(p, pi);
-    
+    unsigned long hash = ti_key->hash(key);
+    size_t idx = hash % um->buckets->max_limit;
+    printf("%zu\n", idx);
+
+    linked_list *bucket = (linked_list*)vec_item_at(um->buckets, idx);
+    node_push_back(bucket, pair_node);
+    um->num_kv_pairs++;
+    umap_rehash(um);
+    return true;
+}
+
+void *umap_getval(unorder_map *um, const void *key, const type_info *ti_key) {
+    if (!um) {
+        fprintf(stderr, "Unordered map is not intitialized.\n");
+        return NULL;
+    }
+    if (um->ti_key != ti_key) {
+        fprintf(stderr, "Type info must match the specified one in the map.\n");
+        return NULL;
+    }
+    unsigned long hash = ti_key->hash(key);
+    size_t idx = hash % um->buckets->max_limit;
+    linked_list *bucket = (linked_list*)vec_item_at(um->buckets, idx);
+    return NULL;
+
+    pair *p = get_linked_list_head(bucket);
+    if (!p->left.ti->equal(p->left.data, key)) {
+        fprintf(stderr, "DEBUG: Sumn went wrong.\n");
+        return NULL;
+    }
+    return p->right.data;
+}
+
+void umap_free(unorder_map *um) {
+    for (size_t i = 0; i < um->buckets->size; ++i) {
+        linked_list *bucket = vec_item_at(um->buckets, i);
+        free_linked_list(bucket);
+    }
+    vec_free(um->buckets);
+    free(um);
 }

@@ -134,5 +134,7 @@ typedef struct unorder_map unorder_map;
 unorder_map *init_u_map_ret(const type_info *ti_key, const type_info *ti_val);
 void init_u_map(unorder_map **um, const type_info *ti_key, const type_info *ti_val);
 void umap_rehash(unorder_map *um);
+bool umap_insert(unorder_map *um, const void *key, const type_info *ti_key, const void *val, const type_info *ti_val);
+void *umap_getval(unorder_map *um, const void *key, const type_info *ti_key);
 
 #endif
